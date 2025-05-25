@@ -8,6 +8,16 @@ import {
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 
+const generateAccessTokenAndRefreshToken = async (user_id) => {
+  const user = await User.findById(user_id);
+  const refreshToken = user.generateRefreshToken();
+  const accessToken = user.generateAccessToken();
+
+  user.refreshToken = refreshToken;
+  await user.save({ validateBeforeSave: false });
+  return { refreshToken, accessToken };
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   const { email, fullName, password } = req.body;
 
@@ -46,6 +56,52 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, updatedUser, "User register Successfully"));
 });
 
-export{
-    registerUser
-}
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email) {
+    throw new ApiError(400, "Email required");
+  }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(400, "User does not exists");
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordValid) {
+    throw new ApiError(400, "Password is incorrect");
+  }
+
+  const { refreshToken, accessToken } =
+    await generateAccessTokenAndRefreshToken(user._id);
+
+  const loginUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+
+  const option = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  res
+    .status(200)
+    .cookie("refreshToken", refreshToken, option)
+    .cookie("accessToken", accessToken, option)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          LoginUser: loginUser,
+          refreshToken,
+          accessToken,
+        },
+        "Login successfull"
+      )
+    );
+});
+
+export { registerUser, loginUser };
