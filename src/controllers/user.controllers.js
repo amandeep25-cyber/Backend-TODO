@@ -129,4 +129,40 @@ const loggedOut = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Logged Out"));
 });
 
-export { registerUser, loginUser, loggedOut };
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const token = req.cookies?.refreshToken;
+
+  if (!token) {
+    throw new ApiError(400, "Refresh token is Empty");
+  }
+
+  const decodedToken = await jwt.verify(token, process.env.REFRESH_SECRET_KEY);
+
+  if (!decodedToken) {
+    throw new ApiError(400, "Token is not valid");
+  }
+
+  const user = await User.findById(decodedToken._id).select(
+    "-password -refreshToken"
+  );
+
+  const accessToken = user.generateAccessToken();
+
+  const option = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  res
+    .cookie("accessToken", accessToken, option)
+    .cookie("refreshToken", token, option)
+    .json(
+      new ApiResponse(200, {
+        user,
+        refreshToken: token,
+        accessToken,
+      })
+    );
+});
+
+export { registerUser, loginUser, loggedOut, refreshAccessToken };
