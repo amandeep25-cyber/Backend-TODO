@@ -12,5 +12,8 @@ router.route('/register').post(upload.single('file'),registerUser);
 router.route('/login').get(loginUser)
 router.route('/refresh-Access-Token').get(refreshAccessToken)
 
+//secured routes
+router.route('/logged-Out').get( verifyJWT, loggedOut)
+
 
 export default router
